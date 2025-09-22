@@ -237,7 +237,7 @@ class ForumStyles {
     return `用户要求生成新的论坛帖子，请生成3-5个内容和主题不同新帖子以及帖子内的回复，每个帖子的发帖人应该是不同的。请严格遵循以下规范：
 
 1. 内容生成格式：
-   - [标题|发帖人昵称|帖子id(t101,t是帖子id的固定前缀)|标题内容|帖子详情内容\`\`\`<img src="https://image.pollinations.ai/prompt/Fried%20stinky%20tofu%20with%20chili%20sauce,%20food%20photography,%20hyper%20realistic" style="width: 100%; display: block; border-radius: 6px;" alt="一份炸臭豆腐，上面撒满了辣椒和葱花">\`\`\`]
+   - \`\`\`[标题|发帖人昵称|帖子id(t101,t是帖子id的固定前缀)|标题内容|帖子详情内容<img src="https://image.pollinations.ai/prompt/Fried%20stinky%20tofu%20with%20chili%20sauce,%20food%20photography,%20hyper%20realistic" style="width: 100%; display: block; border-radius: 6px;" alt="一份炸臭豆腐，上面撒满了辣椒和葱花">]\`\`\`
    - [回复|回帖人昵称|帖子id(t101,t是帖子id的固定前缀)|回复内容]
    - 同一个帖子的标题和id必须相同
    - 示例：
@@ -309,7 +309,7 @@ class ForumStyles {
 **如果要求是：** “生成一张‘一只可爱的猫咪在阳光下睡觉’的图片”
 
 **那么最终生成的代码必须是：**
-\`\`\`html
+\`\`\`
 <!-- 正确示例： -->
 <img src="https://image.pollinations.ai/prompt/a%20cute%20cat%20sleeping%20in%20the%20sun" style="width: 100%; display: block;" alt="一只可爱的猫咪在阳光下睡觉">
 \`\`\`
