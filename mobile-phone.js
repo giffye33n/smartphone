@@ -1234,7 +1234,7 @@ class MobilePhone {
 
       // 构建发送给AI的消息
       const message =
-        '用户正在查看朋友圈，请根据朋友圈规则系统，生成3-5个正确的朋友圈格式，根据角色间的关系为每条朋友圈生成0-5条回复。回复请使用与原楼层相同id。请使用正确的三位数楼层id,楼层id不能与历史楼层id重复。请正确使用前缀s或w。严禁代替用户回复。禁止发表情包或颜文字，可以使用emoji。';
+        '用户正在查看朋友圈，请根据朋友圈规则系统，生成3-5个正确的朋友圈格式，根据角色间的关系为每条朋友圈生成0-5条回复。回复请使用与原楼层相同id。请使用正确的三位数楼层id,楼层id不能与历史楼层id重复。请正确使用前缀w。严禁代替用户回复。禁止发表情包或颜文字，可以使用emoji。';
 
       // 发送消息给AI
       if (window.friendsCircle && window.friendsCircle.sendToAI) {
@@ -2746,10 +2746,9 @@ class MobilePhone {
 
                             <div class="setting-group">
                                 <label>启用监听:</label>
-                                <div class="toggle-switch">
+                                <div class="toggle-switch2">
                                     <input type="checkbox" id="parallel-events-enabled" ${parallelEventsSettings.enabled ? 'checked' : ''}>
-                                    <label for="parallel-events-enabled" class="toggle-label">
-                                    </label>
+
                                 </div>
                                 <small>开启后将持续监听楼层变化，无论手机界面是否打开</small>
                             </div>
