@@ -347,6 +347,30 @@ if (typeof window.WeiboManager !== 'undefined') {
       const caller = force ? '手动强制生成' : '自动检查生成';
       console.log(`[Weibo Manager] 📞 调用源: ${caller}`);
 
+      // 🔧 增强API配置检查 - 修复连续弹窗问题
+      if (!this.isAPIConfigValid()) {
+        const errorMsg = '请先配置API';
+        console.warn(`[Weibo Manager] ❌ API配置无效: ${errorMsg}`);
+
+        // 如果是自动触发的检查，静默失败，不显示弹窗
+        if (!force) {
+          console.log('[Weibo Manager] 自动检查模式下API配置无效，静默跳过，不弹窗');
+          // 临时禁用auto-listener，避免连续触发
+          if (window.weiboAutoListener) {
+            window.weiboAutoListener.disable();
+            console.log('[Weibo Manager] 已临时禁用auto-listener，避免连续失败');
+          }
+          return false;
+        }
+
+        // 只有手动强制生成时才显示错误
+        this.updateStatus(`生成失败: ${errorMsg}`, 'error');
+        if (window.showMobileToast) {
+          window.showMobileToast(`❌ 微博生成失败: ${errorMsg}`, 'error');
+        }
+        return false;
+      }
+
       // 如果是强制模式，立即阻止auto-listener
       if (force && window.weiboAutoListener) {
         if (window.weiboAutoListener.isProcessingRequest) {
@@ -449,14 +473,23 @@ if (typeof window.WeiboManager !== 'undefined') {
           throw new Error('更新上下文失败');
         }
       } catch (error) {
+        // 🔧 增强错误处理 - 防止连续弹窗
         console.error('[Weibo Manager] 生成微博内容失败:', error);
-
-        // 取消自动重试机制，直接显示错误并等待下次阈值达标
         this.updateStatus(`生成失败: ${error.message}`, 'error');
 
-        // 显示错误提示
-        if (window.showMobileToast) {
+        // 如果是API配置错误，临时禁用auto-listener避免连续失败
+        if (error.message.includes('请先配置API') || error.message.includes('API配置')) {
+          if (window.weiboAutoListener && !force) {
+            window.weiboAutoListener.disable();
+            console.log('[Weibo Manager] API配置错误，已临时禁用auto-listener');
+          }
+        }
+
+        // 只有手动强制生成时才显示弹窗错误提示
+        if (force && window.showMobileToast) {
           window.showMobileToast(`❌ 微博生成失败: ${error.message}`, 'error');
+        } else if (!force) {
+          console.log('[Weibo Manager] 自动生成失败，不显示弹窗，避免干扰用户');
         }
 
         // 重置重试计数器
@@ -512,14 +545,70 @@ if (typeof window.WeiboManager !== 'undefined') {
     }
 
     /**
+     * 检查API配置是否有效（修复Gemini URL检查问题）
+     */
+    isAPIConfigValid() {
+      if (!window.mobileCustomAPIConfig) {
+        console.warn('[Weibo Manager] mobileCustomAPIConfig 未找到');
+        return false;
+      }
+
+      const config = window.mobileCustomAPIConfig;
+      const settings = config.currentSettings;
+
+      // 检查基本配置
+      if (!settings.enabled) {
+        console.warn('[Weibo Manager] API未启用');
+        return false;
+      }
+
+      if (!settings.model) {
+        console.warn('[Weibo Manager] 未选择模型');
+        return false;
+      }
+
+      // 检查API密钥（如果需要的话）
+      const providerConfig = config.supportedProviders[settings.provider];
+      if (providerConfig?.requiresKey && !settings.apiKey) {
+        console.warn('[Weibo Manager] 缺少API密钥');
+        return false;
+      }
+
+      // 检查API URL - 修复Gemini URL检查问题
+      let apiUrl;
+      if (settings.provider === 'gemini') {
+        // Gemini使用内置URL
+        apiUrl = config.geminiUrl || config.supportedProviders.gemini.defaultUrl;
+      } else {
+        // 其他服务商使用配置中的URL
+        apiUrl = settings.apiUrl || providerConfig?.defaultUrl;
+      }
+
+      if (!apiUrl) {
+        console.warn('[Weibo Manager] 缺少API URL');
+        return false;
+      }
+
+      console.log('[Weibo Manager] ✅ API配置检查通过:', {
+        provider: settings.provider,
+        hasApiKey: !!settings.apiKey,
+        hasModel: !!settings.model,
+        hasUrl: !!apiUrl,
+        enabled: settings.enabled
+      });
+
+      return true;
+    }
+
+    /**
      * 调用微博API
      */
     async callWeiboAPI(chatData) {
       try {
         console.log('🚀 [微博API] ===== 开始生成微博内容 =====');
 
-        // 检查API配置
-        if (!window.mobileCustomAPIConfig || !window.mobileCustomAPIConfig.isAPIAvailable()) {
+        // 使用增强的API配置检查
+        if (!this.isAPIConfigValid()) {
           throw new Error('请先配置API');
         }
 
@@ -1554,8 +1643,8 @@ if (typeof window.WeiboManager !== 'undefined') {
       try {
         console.log('🚀 [微博API] ===== 开始发送用户博文 =====');
 
-        // 检查API配置
-        if (!window.mobileCustomAPIConfig || !window.mobileCustomAPIConfig.isAPIAvailable()) {
+        // 使用增强的API配置检查
+        if (!this.isAPIConfigValid()) {
           throw new Error('请先配置API');
         }
 
@@ -1630,8 +1719,8 @@ if (typeof window.WeiboManager !== 'undefined') {
       try {
         console.log('🚀 [微博API] ===== 开始发送用户回复 =====');
 
-        // 检查API配置
-        if (!window.mobileCustomAPIConfig || !window.mobileCustomAPIConfig.isAPIAvailable()) {
+        // 使用增强的API配置检查
+        if (!this.isAPIConfigValid()) {
           throw new Error('请先配置API');
         }
 
@@ -1782,6 +1871,16 @@ if (typeof window.WeiboManager !== 'undefined') {
       this.retryConfig.currentRetryCount = 0;
       this.retryConfig.lastFailTime = null;
       console.log('[Weibo Manager] 🔄 重试配置已重置');
+    }
+
+    /**
+     * 当API配置修复后，重新启用auto-listener
+     */
+    enableAutoListenerIfConfigValid() {
+      if (this.isAPIConfigValid() && window.weiboAutoListener && !window.weiboAutoListener.settings.enabled) {
+        console.log('[Weibo Manager] 🔄 API配置已修复，重新启用auto-listener');
+        window.weiboAutoListener.enable();
+      }
     }
   }
 
