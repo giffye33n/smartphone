@@ -35,11 +35,131 @@ class MobilePhone {
     this.createPhoneContainer();
     this.registerApps();
     this.startClock();
+    this.initPageSwipe(); // 初始化页面拖拽功能
 
     // 初始化文字颜色设置
     setTimeout(() => {
       this.initTextColor();
     }, 1000); // 延迟初始化，确保页面加载完成
+  }
+
+  // 初始化页面拖拽功能
+  initPageSwipe() {
+    this.currentPageIndex = 0;
+    this.totalPages = 2;
+    this.isDragging = false;
+    this.startX = 0;
+    this.currentX = 0;
+    this.threshold = 50; // 拖拽阈值
+
+    // 等待DOM元素加载完成
+    setTimeout(() => {
+      const wrapper = document.getElementById('app-pages-wrapper');
+      const indicators = document.getElementById('page-indicators');
+
+      if (!wrapper || !indicators) {
+        console.log('[Mobile Phone] 页面元素未找到，延迟初始化拖拽功能');
+        setTimeout(() => this.initPageSwipe(), 100);
+        return;
+      }
+
+      // 鼠标事件 (PC端)
+      wrapper.addEventListener('mousedown', this.handleStart.bind(this));
+      wrapper.addEventListener('mousemove', this.handleMove.bind(this));
+      wrapper.addEventListener('mouseup', this.handleEnd.bind(this));
+      wrapper.addEventListener('mouseleave', this.handleEnd.bind(this));
+
+      // 触摸事件 (移动端)
+      wrapper.addEventListener('touchstart', this.handleStart.bind(this), { passive: false });
+      wrapper.addEventListener('touchmove', this.handleMove.bind(this), { passive: false });
+      wrapper.addEventListener('touchend', this.handleEnd.bind(this));
+
+      // 指示器点击事件
+      const indicatorElements = indicators.querySelectorAll('.indicator');
+      indicatorElements.forEach((indicator, index) => {
+        indicator.addEventListener('click', () => {
+          this.goToPage(index);
+        });
+      });
+
+      console.log('[Mobile Phone] 页面拖拽功能初始化完成');
+    }, 100);
+  }
+
+  // 处理拖拽开始
+  handleStart(e) {
+    this.isDragging = true;
+    this.startX = e.type === 'mousedown' ? e.clientX : e.touches[0].clientX;
+    this.currentX = this.startX;
+
+    const wrapper = document.getElementById('app-pages-wrapper');
+    wrapper.style.transition = 'none';
+  }
+
+  // 处理拖拽移动
+  handleMove(e) {
+    if (!this.isDragging) return;
+
+    e.preventDefault();
+    this.currentX = e.type === 'mousemove' ? e.clientX : e.touches[0].clientX;
+    const deltaX = this.currentX - this.startX;
+
+    const wrapper = document.getElementById('app-pages-wrapper');
+    const translateX = -this.currentPageIndex * 100 + (deltaX / wrapper.offsetWidth) * 100;
+    wrapper.style.transform = `translateX(${translateX}%)`;
+  }
+
+  // 处理拖拽结束
+  handleEnd(e) {
+    if (!this.isDragging) return;
+
+    this.isDragging = false;
+    const deltaX = this.currentX - this.startX;
+    const wrapper = document.getElementById('app-pages-wrapper');
+
+    // 恢复过渡效果
+    wrapper.style.transition = 'transform 0.3s ease-out';
+
+    // 判断是否需要切换页面
+    if (Math.abs(deltaX) > this.threshold) {
+      if (deltaX > 0 && this.currentPageIndex > 0) {
+        // 向右滑动，切换到上一页
+        this.goToPage(this.currentPageIndex - 1);
+      } else if (deltaX < 0 && this.currentPageIndex < this.totalPages - 1) {
+        // 向左滑动，切换到下一页
+        this.goToPage(this.currentPageIndex + 1);
+      } else {
+        // 回到当前页
+        this.goToPage(this.currentPageIndex);
+      }
+    } else {
+      // 回到当前页
+      this.goToPage(this.currentPageIndex);
+    }
+  }
+
+  // 跳转到指定页面
+  goToPage(pageIndex) {
+    if (pageIndex < 0 || pageIndex >= this.totalPages) return;
+
+    this.currentPageIndex = pageIndex;
+    const wrapper = document.getElementById('app-pages-wrapper');
+    wrapper.style.transform = `translateX(-${pageIndex * 100}%)`;
+
+    // 更新指示器
+    this.updateIndicators();
+  }
+
+  // 更新页面指示器
+  updateIndicators() {
+    const indicators = document.querySelectorAll('.indicator');
+    indicators.forEach((indicator, index) => {
+      if (index === this.currentPageIndex) {
+        indicator.classList.add('active');
+      } else {
+        indicator.classList.remove('active');
+      }
+    });
   }
 
   // 加载拖拽辅助插件
@@ -226,63 +346,80 @@ class MobilePhone {
                                 </div>
 
 
-                                <!-- 应用图标网格 -->
-                                <div class="app-grid">
-                                    <!-- 第一行：信息，购物，任务 -->
-                                    <div class="app-row">
-                                        <div class="app-icon" data-app="messages">
-                                            <div class="app-icon-bg pink">💬</div>
-                                            <span class="app-label">信息</span>
+                                <!-- 应用页面容器 -->
+                                <div class="app-pages-container">
+                                    <div class="app-pages-wrapper" id="app-pages-wrapper">
+                                        <!-- 第一页 -->
+                                        <div class="app-page">
+                                            <div class="app-grid">
+                                                <!-- 第一行：信息，购物，任务 -->
+                                                <div class="app-row">
+                                                    <div class="app-icon" data-app="messages">
+                                                        <div class="app-icon-bg pink">💬</div>
+                                                        <span class="app-label">信息</span>
+                                                    </div>
+                                                    <div class="app-icon" data-app="shop">
+                                                        <div class="app-icon-bg purple">购</div>
+                                                        <span class="app-label">购物</span>
+                                                    </div>
+                                                    <div class="app-icon" data-app="task">
+                                                        <div class="app-icon-bg purple">📰</div>
+                                                        <span class="app-label">任务</span>
+                                                    </div>
+                                                </div>
+                                                <!-- 第二行：论坛，微博，直播 -->
+                                                <div class="app-row">
+                                                    <div class="app-icon" data-app="forum">
+                                                        <div class="app-icon-bg red">📰</div>
+                                                        <span class="app-label">论坛</span>
+                                                    </div>
+                                                    <div class="app-icon" data-app="weibo">
+                                                        <div class="app-icon-bg orange" style="font-size: 22px;color:rgba(0,0,0,0.4)">微</div>
+                                                        <span class="app-label">微博</span>
+                                                    </div>
+                                                    <div class="app-icon" data-app="live">
+                                                        <div class="app-icon-bg red">🎬</div>
+                                                        <span class="app-label">直播</span>
+                                                    </div>
+                                                </div>
+                                                <!-- 第三行：背包，API，设置 -->
+                                                <div class="app-row">
+                                                    <div class="app-icon" data-app="backpack">
+                                                        <div class="app-icon-bg orange">🎒</div>
+                                                        <span class="app-label">背包</span>
+                                                    </div>
+                                                    <div class="app-icon" data-app="api">
+                                                        <div class="app-icon-bg orange" style="font-size: 22px;color:rgba(0,0,0,0.4)">AI</div>
+                                                        <span class="app-label">API</span>
+                                                    </div>
+                                                    <div class="app-icon" data-app="settings">
+                                                        <div class="app-icon-bg purple">⚙️</div>
+                                                        <span class="app-label">设置</span>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div class="app-icon" data-app="shop">
-                                            <div class="app-icon-bg purple">购</div>
-                                            <span class="app-label">购物</span>
-                                        </div>
-                                        <div class="app-icon" data-app="task">
-                                            <div class="app-icon-bg purple">📰</div>
-                                            <span class="app-label">任务</span>
+
+                                        <!-- 第二页 -->
+                                        <div class="app-page">
+                                            <div class="app-grid">
+                                                <!-- 第一行：相册，邮件，音乐 -->
+                                                <div class="app-row">
+                                                    <div class="app-icon" data-app="seshi">
+                                                        <div class="app-icon-bg blue">📸</div>
+                                                        <span class="app-label">测试</span>
+                                                    </div>
+
+                                                </div>
+
+                                            </div>
                                         </div>
                                     </div>
-                                    <!-- 第二行：论坛，微博，直播 -->
-                                    <div class="app-row">
-                                        <div class="app-icon" data-app="forum">
-                                            <div class="app-icon-bg red">📰</div>
-                                            <span class="app-label">论坛</span>
-                                        </div>
-                                        <div class="app-icon" data-app="weibo">
-                                            <div class="app-icon-bg orange" style="font-size: 22px;color:rgba(0,0,0,0.4)">微</div>
-                                            <span class="app-label">微博</span>
-                                        </div>
-                                        <div class="app-icon" data-app="live">
-                                            <div class="app-icon-bg red">🎬</div>
-                                            <span class="app-label">直播</span>
-                                        </div>
-                                    </div>
-                                    <!-- 第三行：背包，API，设置 -->
-                                    <div class="app-row">
-                                        <div class="app-icon" data-app="backpack">
-                                            <div class="app-icon-bg orange">🎒</div>
-                                            <span class="app-label">背包</span>
-                                        </div>
-                                        <div class="app-icon" data-app="api">
-                                            <div class="app-icon-bg orange" style="font-size: 22px;color:rgba(0,0,0,0.4)">AI</div>
-                                            <span class="app-label">API</span>
-                                        </div>
-                                        <div class="app-icon" data-app="settings">
-                                            <div class="app-icon-bg purple">⚙️</div>
-                                            <span class="app-label">设置</span>
-                                        </div>
-                                    </div>
-                                    <!-- 隐藏的应用 -->
-                                    <div style="display: none;">
-                                        <div class="app-icon" data-app="gallery">
-                                            <div class="app-icon-bg blue">📸</div>
-                                            <span class="app-label">相册</span>
-                                        </div>
-                                        <div class="app-icon" data-app="mail">
-                                            <div class="app-icon-bg orange">✉️</div>
-                                            <span class="app-label">邮件</span>
-                                        </div>
+
+                                    <!-- 页面指示器 -->
+                                    <div class="page-indicators" id="page-indicators">
+                                        <div class="indicator active"></div>
+                                        <div class="indicator"></div>
                                     </div>
                                 </div>
                                 <!-- 底部小动物装饰 -->
