@@ -344,7 +344,7 @@ if (typeof window.FriendRenderer === 'undefined') {
           while ((match = pattern.exec(cleanedText)) !== null) {
             if (match[1]) {
               let content = match[1];
-              
+
               // 检查是否包含HTML标签
               if (content.includes('<img')) {
                 content = '[图片]';
@@ -359,7 +359,7 @@ if (typeof window.FriendRenderer === 'undefined') {
                   content = '[富文本消息]';
                 }
               }
-              
+
               // 对于红包，显示 "红包：金额"
               if (pattern.source.includes('红包')) {
                 extractedMessages.push(`红包：${content}`);
