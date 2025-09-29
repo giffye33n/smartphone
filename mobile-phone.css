@@ -292,6 +292,7 @@
   display: flex;
   gap: 8px;
   z-index: 10;
+  display:none
 }
 
 .indicator {
