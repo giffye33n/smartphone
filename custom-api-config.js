@@ -1726,13 +1726,42 @@ class MobileCustomAPIConfig {
         let finishReason = null;
         let responseModel = model;
 
-        // 格式1: OpenAI标准格式
+        // 格式1: OpenAI标准格式和DeepSeek格式
         if (data.choices && Array.isArray(data.choices) && data.choices.length > 0) {
             const choice = data.choices[0];
-            content = choice.message?.content || choice.text || choice.delta?.content || '';
+            // 支持多种DeepSeek和OpenAI格式的内容提取路径
+            content = choice.message?.content ||
+                     choice.text ||
+                     choice.content ||  // DeepSeek可能直接在choice下有content
+                     choice.delta?.content ||
+                     choice.response ||  // 某些变体可能使用response
+                     '';
             finishReason = choice.finish_reason;
             usage = data.usage;
             responseModel = data.model || model;
+
+            // 如果仍然没有内容，尝试更深层的提取
+            if (!content && choice.message) {
+                // 尝试提取message对象的其他可能字段
+                content = choice.message.text ||
+                         choice.message.response ||
+                         choice.message.content || '';
+            }
+
+            // 如果还是没有内容，记录详细的choice结构用于调试
+            if (!content) {
+                console.warn('[Mobile API Config] 🔍 DeepSeek响应choice详细结构:', {
+                    choiceKeys: Object.keys(choice || {}),
+                    messageKeys: choice.message ? Object.keys(choice.message) : null,
+                    choiceStructure: choice,
+                    hasMessage: !!choice.message,
+                    hasContent: !!choice.content,
+                    hasText: !!choice.text,
+                    hasResponse: !!choice.response,
+                    messageContent: choice.message?.content,
+                    messageText: choice.message?.text
+                });
+            }
         }
         // 格式2: Gemini API格式
         else if (data.candidates && Array.isArray(data.candidates) && data.candidates.length > 0) {
@@ -1768,6 +1797,52 @@ class MobileCustomAPIConfig {
             // 最后尝试：如果是字符串，直接使用
             if (typeof data === 'string') {
                 content = data;
+            } else if (data.choices && Array.isArray(data.choices) && data.choices.length > 0) {
+                // 对于DeepSeek等特殊格式，尝试更广泛的内容搜索
+                const choice = data.choices[0];
+                console.warn('[Mobile API Config] 🔍 尝试从choice中提取任何可能的文本内容...');
+
+                // 递归搜索choice对象中的任何文本内容
+                function findTextContent(obj, depth = 0) {
+                    if (depth > 3) return null; // 防止过深递归
+                    if (typeof obj === 'string' && obj.trim().length > 0) {
+                        return obj;
+                    }
+                    if (obj && typeof obj === 'object') {
+                        for (const [key, value] of Object.entries(obj)) {
+                            if (key.toLowerCase().includes('content') ||
+                                key.toLowerCase().includes('text') ||
+                                key.toLowerCase().includes('response') ||
+                                key.toLowerCase().includes('message')) {
+                                const found = findTextContent(value, depth + 1);
+                                if (found) return found;
+                            }
+                        }
+                    }
+                    return null;
+                }
+
+                const foundContent = findTextContent(choice);
+                if (foundContent) {
+                    console.log('[Mobile API Config] ✅ 在choice中找到内容!');
+                    content = foundContent;
+                } else {
+                    // 记录详细信息用于调试
+                    console.error('[Mobile API Config] 📋 响应结构分析:', {
+                        hasChoices: !!data.choices,
+                        choicesLength: data.choices?.length,
+                        hasCandidates: !!data.candidates,
+                        candidatesLength: data.candidates?.length,
+                        hasContent: !!data.content,
+                        hasText: !!data.text,
+                        hasResponse: !!data.response,
+                        hasData: !!data.data,
+                        keys: Object.keys(data || {}),
+                        firstChoiceKeys: choice ? Object.keys(choice) : null
+                    });
+
+                    throw new Error(`无法解析API响应格式。响应键: [${Object.keys(data || {}).join(', ')}]`);
+                }
             } else {
                 // 记录详细信息用于调试
                 console.error('[Mobile API Config] 📋 响应结构分析:', {
