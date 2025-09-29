@@ -1451,7 +1451,7 @@ class MobileCustomAPIConfig {
         }
 
         // 设置默认值
-        requestBody.max_tokens = options.max_tokens || 1000;
+        requestBody.max_tokens = options.max_tokens || 30000;
         requestBody.temperature = options.temperature || 0.7;
         requestBody.stream = false; // 禁用流式响应以简化处理
 
@@ -1580,7 +1580,7 @@ class MobileCustomAPIConfig {
         const requestBody = {
             model: model,
             messages: messages,
-            max_tokens: options.max_tokens || this.currentSettings.maxTokens || 1000,
+            max_tokens: options.max_tokens || this.currentSettings.maxTokens || 30000,
             temperature: options.temperature || this.currentSettings.temperature || 0.7,
             stream: false, // 禁用流式响应以简化处理
             ...options
