@@ -1060,19 +1060,40 @@ class ProfileApp {
         try {
             console.log('[Profile App] 开始保存档案到世界书');
 
-            // 获取第一个可用的世界书
+            // 优先选择"外置手机"世界书
             let targetWorldbookName = null;
 
-            // 从DOM选择器获取当前选中的世界书
+            // 方法1：优先查找"外置手机"世界书
             const worldInfoSelect = document.getElementById('world_info');
             if (worldInfoSelect && worldInfoSelect.selectedOptions.length > 0) {
-                targetWorldbookName = worldInfoSelect.selectedOptions[0].text;
-                console.log(`[Profile App] 使用选中的世界书: ${targetWorldbookName}`);
+                // 先查找是否有"外置手机"世界书
+                const mobileWorldbook = Array.from(worldInfoSelect.selectedOptions).find(option =>
+                    option.text === '外置手机' || option.text.includes('外置手机') || option.text.includes('mobile')
+                );
+
+                if (mobileWorldbook) {
+                    targetWorldbookName = mobileWorldbook.text;
+                    console.log(`[Profile App] 找到外置手机世界书: ${targetWorldbookName}`);
+                } else {
+                    // 如果没有外置手机世界书，使用第一个选中的世界书
+                    targetWorldbookName = worldInfoSelect.selectedOptions[0].text;
+                    console.log(`[Profile App] 使用第一个选中的世界书: ${targetWorldbookName}`);
+                }
             } else if (typeof window.selected_world_info !== 'undefined' && Array.isArray(window.selected_world_info) && window.selected_world_info.length > 0) {
-                targetWorldbookName = window.selected_world_info[0];
-                console.log(`[Profile App] 使用全局变量中的世界书: ${targetWorldbookName}`);
+                // 方法2：从全局变量中查找
+                const mobileWorldbook = window.selected_world_info.find(name =>
+                    name === '外置手机' || name.includes('外置手机') || name.includes('mobile')
+                );
+
+                if (mobileWorldbook) {
+                    targetWorldbookName = mobileWorldbook;
+                    console.log(`[Profile App] 从全局变量找到外置手机世界书: ${targetWorldbookName}`);
+                } else {
+                    targetWorldbookName = window.selected_world_info[0];
+                    console.log(`[Profile App] 使用全局变量中的第一个世界书: ${targetWorldbookName}`);
+                }
             } else {
-                throw new Error('未找到可用的世界书，请先在SillyTavern中选择一个世界书');
+                throw new Error('未找到可用的世界书，请先在SillyTavern中选择一个世界书（建议创建并选择"外置手机"世界书）');
             }
 
             const entryName = `【档案】${personName}`;
