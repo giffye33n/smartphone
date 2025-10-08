@@ -18,9 +18,6 @@ class MobileCustomAPIConfig {
         // 初始化Gemini的内置URL
         this.geminiUrl = this.supportedProviders.gemini.defaultUrl;
 
-        // 缓存成功的配置以提升性能
-        this.successfulConfigs = new Map();
-
         // 绑定到全局窗口对象
         window.mobileCustomAPIConfig = this;
 
@@ -33,23 +30,20 @@ class MobileCustomAPIConfig {
     getDefaultSettings() {
         return {
             enabled: false,
-            provider: 'openai', // 默认使用OpenAI
+            provider: 'openai', // 修改：默认使用OpenAI
             apiUrl: '',
             apiKey: '',
             model: '',
             temperature: 0.8,
-            maxTokens: 50000, // 增加默认token限制
+            maxTokens: 30000,
             useProxy: false,
             proxyUrl: '',
-            timeout: 60000, // 增加超时时间至60秒
+            timeout: 30000,
             retryCount: 3,
             // 高级设置
             customHeaders: {},
             systemPrompt: '',
-            streamEnabled: false,
-            // 新增设置：自动重试截断的响应
-            autoRetryTruncated: true,
-            truncationRetryMaxTokens: 80000 // 重试时使用的更大token限制
+            streamEnabled: false
         };
     }
 
@@ -78,27 +72,15 @@ class MobileCustomAPIConfig {
                 requiresKey: true,
                 icon: '💎'
             },
-            backend_custom: {
-                name: '后端API',
+            custom: {
+                name: '自定义API',
                 defaultUrl: '',
                 urlSuffix: 'chat/completions',
                 modelsEndpoint: 'models',
                 defaultModels: [],
                 authType: 'Bearer',
                 requiresKey: true,
-                icon: '🔗',
-                description: '通过SillyTavern后端代理调用'
-            },
-            frontend_custom: {
-                name: '前端API',
-                defaultUrl: '',
-                urlSuffix: 'chat/completions',
-                modelsEndpoint: 'models',
-                defaultModels: [],
-                authType: 'Bearer',
-                requiresKey: true,
-                icon: '⚡',
-                description: '直接从浏览器调用API'
+                icon: '⚙️'
             }
         };
     }
@@ -315,7 +297,7 @@ class MobileCustomAPIConfig {
                     <label style="display: block; margin-bottom: 5px; font-weight: 500;">API服务商:</label>
                     <select id="api-provider" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px; background-color: #fff; color: #000;">
                         ${Object.entries(providers).map(([key, provider]) =>
-                            `<option value="${key}" ${key === settings.provider ? 'selected' : ''} title="${provider.description || ''}">${provider.icon} ${provider.name}${provider.description ? ` - ${provider.description}` : ''}</option>`
+                            `<option value="${key}" ${key === settings.provider ? 'selected' : ''}>${provider.icon} ${provider.name}</option>`
                         ).join('')}
                     </select>
                 </div>
@@ -384,19 +366,9 @@ class MobileCustomAPIConfig {
                         <!-- 最大令牌数 -->
                         <div style="margin-bottom: 10px;">
                             <label style="display: block; margin-bottom: 5px;">最大令牌数:</label>
-                            <input type="number" id="api-max-tokens" min="1" max="200000"
+                            <input type="number" id="api-max-tokens" min="1" max="80000"
                                    value="${settings.maxTokens}"
                                    style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px;background-color: #fff;color: #000;">
-                            <small style="color: #666; font-size: 12px;">建议设置较高的值以避免内容截断（如50000-80000）</small>
-                        </div>
-
-                        <!-- 自动重试截断响应 -->
-                        <div style="margin-bottom: 10px;">
-                            <label style="display: flex; align-items: center; gap: 10px; font-weight: 500;">
-                                <input type="checkbox" id="api-auto-retry-truncated" ${settings.autoRetryTruncated ? 'checked' : ''}>
-                                自动重试截断的响应
-                            </label>
-                            <small style="color: #666; font-size: 12px;">当检测到内容被截断时，自动使用更大的token限制重试</small>
                         </div>
 
                         <!-- 系统提示词 -->
@@ -544,7 +516,7 @@ class MobileCustomAPIConfig {
             // 内部设置Gemini的URL，但不显示给用户
             this.geminiUrl = provider.defaultUrl;
         } else {
-            // OpenAI、后端API和前端API: 显示URL输入框让用户编辑
+            // OpenAI和自定义API: 显示URL输入框让用户编辑
             if (urlSection) {
                 urlSection.style.display = 'block';
             }
@@ -554,7 +526,7 @@ class MobileCustomAPIConfig {
                 // 如果之前保存过这个服务商的URL，则恢复；否则使用默认值
                 const savedUrl = this.getNonGeminiUrl(providerKey);
                 urlInput.value = savedUrl || provider.defaultUrl;
-                urlInput.placeholder = provider.defaultUrl || 'https://api.openai.com';
+                urlInput.placeholder = provider.defaultUrl;
             }
         }
 
@@ -565,10 +537,6 @@ class MobileCustomAPIConfig {
                 keyInput.placeholder = 'sk-...';
             } else if (providerKey === 'gemini') {
                 keyInput.placeholder = 'AIza...';
-            } else if (providerKey === 'backend_custom') {
-                keyInput.placeholder = '后端API密钥...';
-            } else if (providerKey === 'frontend_custom') {
-                keyInput.placeholder = '前端API密钥...';
             } else {
                 keyInput.placeholder = '输入API密钥...';
             }
@@ -636,8 +604,7 @@ class MobileCustomAPIConfig {
             'api-model': settings.model,
             'api-temperature': settings.temperature,
             'api-max-tokens': settings.maxTokens,
-            'api-system-prompt': settings.systemPrompt,
-            'api-auto-retry-truncated': settings.autoRetryTruncated
+            'api-system-prompt': settings.systemPrompt
         };
 
         Object.entries(elements).forEach(([id, value]) => {
@@ -683,9 +650,8 @@ class MobileCustomAPIConfig {
                 apiKey: document.getElementById('api-key')?.value || '',
                 model: document.getElementById('api-model')?.value || '',
                 temperature: parseFloat(document.getElementById('api-temperature')?.value || 0.8),
-                maxTokens: parseInt(document.getElementById('api-max-tokens')?.value || 50000),
-                systemPrompt: document.getElementById('api-system-prompt')?.value || '',
-                autoRetryTruncated: document.getElementById('api-auto-retry-truncated')?.checked || false
+                maxTokens: parseInt(document.getElementById('api-max-tokens')?.value || 1500),
+                systemPrompt: document.getElementById('api-system-prompt')?.value || ''
             };
 
             // 验证必填字段
@@ -781,7 +747,7 @@ class MobileCustomAPIConfig {
     }
 
         /**
-     * 获取模型列表 (优化版本，使用缓存和智能配置选择)
+     * 获取模型列表 (完全兼容real-time-status-bar逻辑)
      */
     async fetchModels(provider, apiUrl, apiKey) {
         const providerConfig = this.supportedProviders[provider];
@@ -789,238 +755,108 @@ class MobileCustomAPIConfig {
             throw new Error('不支持的服务商');
         }
 
-        // 生成缓存键
-        const cacheKey = `${provider}_${apiUrl}_${apiKey ? 'hasKey' : 'noKey'}`;
-
-        // 检查缓存的成功配置
-        if (this.successfulConfigs.has(cacheKey)) {
-            const cachedConfig = this.successfulConfigs.get(cacheKey);
-            console.log(`[Mobile API Config] 🚀 使用缓存配置: ${cachedConfig.name}`);
-
-            try {
-                const models = await this.tryConfiguration(cachedConfig);
-                if (models && models.length > 0) {
-                    return models;
-                }
-                // 如果缓存的配置失效，清除缓存
-                this.successfulConfigs.delete(cacheKey);
-            } catch (error) {
-                console.warn(`[Mobile API Config] 缓存配置失效: ${cachedConfig.name}`, error);
-                this.successfulConfigs.delete(cacheKey);
-            }
-        }
-
-        // 智能选择最可能成功的配置
-        const configurationAttempts = this.getOptimalConfigurations(provider, apiUrl, apiKey);
-
-        // 逐个尝试配置（但现在有了缓存，通常第一次后就会很快）
-        for (const attempt of configurationAttempts) {
-            try {
-                console.log(`[Mobile API Config] 尝试配置: ${attempt.name}`);
-                const models = await this.tryConfiguration(attempt);
-
-                if (models && models.length > 0) {
-                    // 缓存成功的配置
-                    this.successfulConfigs.set(cacheKey, attempt);
-                    console.log(`[Mobile API Config] ✅ 成功配置: "${attempt.name}", 找到 ${models.length} 个模型`);
-                    return models;
-                }
-            } catch (error) {
-                console.warn(`[Mobile API Config] 配置 "${attempt.name}" 发生异常:`, error);
-                continue;
-            }
-        }
-
-        // 如果所有配置都失败了
-        console.error('[Mobile API Config] ❌ 所有配置尝试都失败了，使用默认模型列表');
-        return providerConfig.defaultModels;
-    }
-
-    /**
-     * 获取最优的配置尝试顺序
-     */
-    getOptimalConfigurations(provider, apiUrl, apiKey) {
-        // 基于经验和成功率排序配置
-        if (provider === 'gemini' || apiUrl.includes('gemini') || apiUrl.includes('beijixingxing')) {
-            return [
-                {
-                    name: 'MakerSuite with reverse_proxy',
-                    requestBody: {
-                        chat_completion_source: 'makersuite',
-                        reverse_proxy: apiUrl.trim(),
-                        proxy_password: apiKey || ''
-                    }
-                },
-                {
-                    name: 'OpenAI-compatible for Gemini proxy',
-                    requestBody: {
-                        chat_completion_source: 'openai',
-                        reverse_proxy: apiUrl.trim(),
-                        proxy_password: apiKey || ''
-                    }
-                },
-                {
-                    name: 'Custom with Bearer for Gemini proxy',
-                    requestBody: {
-                        chat_completion_source: 'custom',
-                        custom_url: apiUrl.trim(),
-                        custom_include_headers: apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}
-                    }
-                }
-            ];
-        } else if (provider === 'backend_custom') {
-            // 后端API - 通过SillyTavern后端代理
-            return [
-                {
-                    name: 'Backend Custom with Bearer auth',
-                    requestBody: {
-                        chat_completion_source: 'custom',
-                        custom_url: apiUrl.trim(),
-                        custom_include_headers: apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}
-                    }
-                },
-                {
-                    name: 'Backend OpenAI with reverse_proxy',
-                    requestBody: {
-                        chat_completion_source: 'openai',
-                        reverse_proxy: apiUrl.trim(),
-                        proxy_password: apiKey || ''
-                    }
-                }
-            ];
-        } else if (provider === 'frontend_custom') {
-            // 前端API - 直接调用，不通过后端（这里只是为了保持一致性，实际不会用到）
-            return [
-                {
-                    name: 'Frontend Direct Call',
-                    requestBody: null, // 前端直连不需要后端配置
-                    isDirect: true
-                }
-            ];
-        } else {
-            // OpenAI 和其他后端代理API
-            return [
-                {
-                    name: 'OpenAI with reverse_proxy',
-                    requestBody: {
-                        chat_completion_source: 'openai',
-                        reverse_proxy: apiUrl.trim(),
-                        proxy_password: apiKey || ''
-                    }
-                },
-                {
-                    name: 'Custom with Bearer auth',
-                    requestBody: {
-                        chat_completion_source: 'custom',
-                        custom_url: apiUrl.trim(),
-                        custom_include_headers: apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}
-                    }
-                }
-            ];
-        }
-    }
-
-    /**
-     * 尝试单个配置
-     */
-    async tryConfiguration(attempt) {
-        // 如果是前端直连配置
-        if (attempt.isDirect) {
-            return await this.tryDirectConfiguration(attempt);
-        }
-
-        // 后端代理配置
-        // 获取请求头
-        let headers = { 'Content-Type': 'application/json' };
-        if (typeof getRequestHeaders === 'function') {
-            headers = getRequestHeaders();
-        }
-
-        const response = await fetch('/api/backends/chat-completions/status', {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(attempt.requestBody),
-            timeout: 10000 // 10秒超时
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-
-        // 如果有严重错误（没有数据结构），抛出异常
-        if (data.error && !data.data) {
-            throw new Error(`API错误: ${data.error.message || data.error}`);
-        }
-
-        // 解析模型列表
-        let models = [];
-        const actualData = data.data?.data || data.data || data;
-
-        if (actualData && Array.isArray(actualData)) {
-            models = actualData.map(model => model.id || model.name);
-        } else if (data.models && Array.isArray(data.models)) {
-            models = data.models
-                .filter(model => model.supportedGenerationMethods?.includes('generateContent'))
-                .map(model => model.name ? model.name.replace('models/', '') : model.id);
-        } else if (Array.isArray(data)) {
-            models = data.map(model => model.id || model.name || model);
-        }
-
-        return models.filter(model => typeof model === 'string' && model.length > 0);
-    }
-
-    /**
-     * 尝试前端直连配置
-     */
-    async tryDirectConfiguration(attempt) {
-        // 这里需要从当前UI获取配置
-        const apiUrl = document.getElementById('api-url')?.value;
-        const apiKey = document.getElementById('api-key')?.value;
-
-        if (!apiUrl) {
-            throw new Error('API URL 未设置');
-        }
-
-        // 构建模型列表请求URL
+        // 构建模型列表URL
         let modelsUrl = apiUrl.trim();
         if (!modelsUrl.endsWith('/')) {
             modelsUrl += '/';
         }
-        modelsUrl += 'models';
+
+        // 根据不同服务商构建正确的URL
+        if (provider === 'gemini') {
+            // Gemini API使用特殊的URL结构
+            if (!modelsUrl.includes('/v1beta/models')) {
+                if (modelsUrl.endsWith('/v1/')) {
+                    modelsUrl = modelsUrl.replace('/v1/', '/v1beta/models');
+                } else {
+                    modelsUrl += 'v1beta/models';
+                }
+            }
+        } else {
+            // OpenAI和自定义API使用标准URL构建
+            if (modelsUrl.endsWith('/v1/')) {
+                modelsUrl += 'models';
+            } else if (!modelsUrl.includes('/models')) {
+                modelsUrl += 'models';
+            }
+        }
 
         // 构建请求头
-        const headers = {
-            'Content-Type': 'application/json'
-        };
+        const headers = { 'Content-Type': 'application/json' };
 
-        if (apiKey) {
-            headers['Authorization'] = `Bearer ${apiKey}`;
+        // 根据服务商设置正确的认证方式
+        if (providerConfig.requiresKey && apiKey) {
+            if (provider === 'gemini') {
+                // Gemini API使用URL参数传递key
+                modelsUrl += `?key=${apiKey}`;
+            } else {
+                // OpenAI和自定义API使用Bearer认证
+                headers['Authorization'] = `Bearer ${apiKey}`;
+            }
         }
 
-        // 直接调用API
-        const response = await fetch(modelsUrl, {
-            method: 'GET',
-            headers: headers,
-            timeout: 10000 // 10秒超时
+        console.log('[Mobile API Config] 请求模型列表:', {
+            provider: provider,
+            url: modelsUrl.replace(apiKey || '', '[HIDDEN]'),
+            headers: { ...headers, Authorization: headers.Authorization ? 'Bearer [HIDDEN]' : undefined }
         });
 
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        try {
+            const response = await fetch(modelsUrl, {
+                method: 'GET',
+                headers: headers
+                // 移除timeout，因为某些浏览器不支持
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('[Mobile API Config] 模型列表请求失败:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    error: errorText
+                });
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+
+            const data = await response.json();
+            console.log('[Mobile API Config] 模型列表原始响应:', data);
+
+            // 根据不同服务商解析响应
+            let models = [];
+            if (provider === 'gemini') {
+                // Gemini API响应格式：{ models: [{ name: "models/gemini-pro", ... }] }
+                if (data.models && Array.isArray(data.models)) {
+                    models = data.models
+                        .filter(model => model.supportedGenerationMethods?.includes('generateContent'))
+                        .map(model => model.name.replace('models/', ''));
+                } else {
+                    console.warn('[Mobile API Config] Gemini API响应格式异常:', data);
+                    // 如果没有返回期望的格式，使用默认模型
+                    models = providerConfig.defaultModels;
+                }
+            } else {
+                // OpenAI兼容格式
+                if (data.data && Array.isArray(data.data)) {
+                    // 标准OpenAI格式
+                    models = data.data.map(model => model.id);
+                } else if (Array.isArray(data)) {
+                    // 直接数组格式
+                    models = data.map(model => model.id || model.name || model);
+                } else {
+                    console.warn('[Mobile API Config] OpenAI兼容API响应格式异常:', data);
+                    models = providerConfig.defaultModels;
+                }
+            }
+
+            const filteredModels = models.filter(model => typeof model === 'string' && model.length > 0);
+            console.log('[Mobile API Config] 解析后的模型列表:', filteredModels);
+
+            return filteredModels.length > 0 ? filteredModels : providerConfig.defaultModels;
+
+        } catch (fetchError) {
+            console.error('[Mobile API Config] 网络请求失败:', fetchError);
+            // 如果网络请求失败，返回默认模型列表
+            return providerConfig.defaultModels;
         }
-
-        const data = await response.json();
-
-        // 解析模型列表
-        let models = [];
-        if (data.data && Array.isArray(data.data)) {
-            models = data.data.map(model => model.id || model.name);
-        } else if (Array.isArray(data)) {
-            models = data.map(model => model.id || model.name || model);
-        }
-
-        return models.filter(model => typeof model === 'string' && model.length > 0);
     }
 
     /**
@@ -1060,13 +896,7 @@ class MobileCustomAPIConfig {
         this.showStatus('🧪 正在测试连接...', 'info');
 
         try {
-            let result;
-            if (provider === 'frontend_custom') {
-                result = await this.testDirectAPICall(apiUrl, apiKey, model);
-            } else {
-                result = await this.testAPICall(provider, apiUrl, apiKey, model);
-            }
-
+            const result = await this.testAPICall(provider, apiUrl, apiKey, model);
             if (result.success) {
                 this.showStatus('✅ 连接测试成功!', 'success');
             } else {
@@ -1136,69 +966,6 @@ class MobileCustomAPIConfig {
         console.log('[Mobile API Config] 测试响应:', data);
 
         return { success: true, data: data };
-    }
-
-    /**
-     * 执行前端直连API测试调用
-     */
-    async testDirectAPICall(apiUrl, apiKey, model) {
-        // 构建请求URL
-        let requestUrl = apiUrl.trim();
-        if (!requestUrl.endsWith('/')) {
-            requestUrl += '/';
-        }
-        requestUrl += 'chat/completions';
-
-        // 构建请求头
-        const headers = { 'Content-Type': 'application/json' };
-        if (apiKey) {
-            headers['Authorization'] = `Bearer ${apiKey}`;
-        }
-
-        // 构建测试请求体
-        const requestBody = {
-            model: model,
-            messages: [{ role: 'user', content: 'Hello! This is a test message from Mobile API Config.' }],
-            max_tokens: 50,
-            temperature: 0.7
-        };
-
-        console.log('[Mobile API Config] 前端直连测试请求:', {
-            url: requestUrl.replace(apiKey || '', '[HIDDEN]'),
-            headers: { ...headers, Authorization: headers.Authorization ? 'Bearer [HIDDEN]' : undefined },
-            body: requestBody
-        });
-
-        try {
-            const response = await fetch(requestUrl, {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(requestBody),
-                timeout: 15000
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                return { success: false, error: `HTTP ${response.status}: ${errorText}` };
-            }
-
-            const data = await response.json();
-            console.log('[Mobile API Config] 前端直连测试响应:', data);
-
-            return { success: true, data: data };
-        } catch (error) {
-            console.error('[Mobile API Config] 前端直连测试异常:', error);
-
-            // 检查是否是CORS错误
-            if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-                return {
-                    success: false,
-                    error: `CORS错误或网络问题: ${error.message}。建议使用"后端API"选项。`
-                };
-            }
-
-            return { success: false, error: error.message };
-        }
     }
 
     /**
@@ -1293,345 +1060,53 @@ class MobileCustomAPIConfig {
             throw new Error('缺少API密钥');
         }
 
-        // 判断是前端直连还是后端代理
-        let result;
-        const maxRetries = this.currentSettings.retryCount || 3;
-        let retryCount = 0;
-
-        while (retryCount <= maxRetries) {
-            try {
-                // 构建请求选项，如果是重试且启用了自动重试截断，增加token限制
-                const requestOptions = { ...options };
-                if (retryCount > 0 && this.currentSettings.autoRetryTruncated) {
-                    requestOptions.max_tokens = this.currentSettings.truncationRetryMaxTokens || 80000;
-                    console.log(`[Mobile API Config] 🔄 第${retryCount}次重试，使用更大的token限制: ${requestOptions.max_tokens}`);
-                }
-
-                if (provider === 'frontend_custom') {
-                    console.log('[Mobile API Config] ⚡ 通过前端直接调用 API');
-                    result = await this.callDirectAPI(apiUrl, apiKey, model, messages, requestOptions);
-                } else {
-                    console.log('[Mobile API Config] 🔗 通过 SillyTavern 后端代理发送 API 请求');
-                    result = await this.callBackendAPI(provider, apiUrl, apiKey, model, messages, requestOptions);
-                }
-
-                // 检查是否需要重试（内容被截断且启用了自动重试）
-                if (result.truncated && this.currentSettings.autoRetryTruncated && retryCount < maxRetries) {
-                    console.warn(`[Mobile API Config] ⚠️ 响应被截断 (${result.truncationReason})，准备重试...`);
-                    retryCount++;
-                    continue;
-                }
-
-                // 返回结果
-                return result;
-
-            } catch (error) {
-                retryCount++;
-                console.error(`[Mobile API Config] ❌ API调用失败 (第${retryCount}次尝试):`, error.message);
-
-                // 如果是最后一次尝试或非网络错误，直接抛出
-                if (retryCount > maxRetries || !this.isRetryableError(error)) {
-                    throw error;
-                }
-
-                // 等待重试延迟
-                const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 10000); // 指数退避，最大10秒
-                console.log(`[Mobile API Config] 🕐 等待 ${delay}ms 后重试...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
+        // CORS警告检查
+        if (provider === 'gemini' && window.location.protocol === 'http:') {
+            console.warn('⚠️ [Mobile API Config] CORS警告: 从浏览器直接调用Gemini API可能被CORS策略阻止');
+            console.warn('建议通过后端代理或使用HTTPS来避免CORS问题');
         }
 
-        return result;
-    }
-
-    /**
-     * 判断错误是否可以重试
-     */
-    isRetryableError(error) {
-        const errorMessage = error.message.toLowerCase();
-
-        // 网络相关错误
-        const networkErrors = [
-            'fetch',
-            'network',
-            'timeout',
-            'connection',
-            'aborted',
-            'rate limit',
-            'too many requests',
-            'service unavailable',
-            'bad gateway',
-            'gateway timeout',
-            'server error',
-            'internal server error'
-        ];
-
-        // HTTP状态码相关的可重试错误
-        const retryableHttpCodes = [429, 502, 503, 504];
-
-        // 检查是否包含网络错误关键词
-        const hasNetworkError = networkErrors.some(keyword =>
-            errorMessage.includes(keyword)
-        );
-
-        // 检查是否包含可重试的HTTP状态码
-        const hasRetryableHttpCode = retryableHttpCodes.some(code =>
-            errorMessage.includes(code.toString()) || errorMessage.includes(`http ${code}`)
-        );
-
-        return hasNetworkError || hasRetryableHttpCode;
-    }
-
-    /**
-     * 通过后端代理调用API
-     */
-    async callBackendAPI(provider, apiUrl, apiKey, model, messages, options) {
-
-        // 生成缓存键
-        const cacheKey = `${provider}_${apiUrl}_${apiKey ? 'hasKey' : 'noKey'}`;
-
-        // 使用缓存的成功配置
-        let requestBody;
-        if (this.successfulConfigs.has(cacheKey)) {
-            const cachedConfig = this.successfulConfigs.get(cacheKey);
-            console.log(`[Mobile API Config] 🚀 使用缓存的API配置: ${cachedConfig.name}`);
-
-            // 基于缓存配置构建请求体
-            requestBody = {
-                ...cachedConfig.requestBody,
-                model: model,
-                messages: messages,
-                ...options
-            };
-        } else {
-            // 如果没有缓存，使用默认逻辑（但建议先调用fetchModels建立缓存）
-            console.warn('[Mobile API Config] ⚠️ 没有找到缓存配置，使用默认逻辑（建议先调用fetchModels）');
-
-            if (provider === 'gemini' || apiUrl.includes('gemini') || apiUrl.includes('beijixingxing')) {
-                if (apiUrl.includes('beijixingxing')) {
-                    requestBody = {
-                        chat_completion_source: 'openai',
-                        reverse_proxy: apiUrl.trim(),
-                        proxy_password: apiKey || '',
-                        model: model,
-                        messages: messages,
-                        ...options
-                    };
-                } else {
-                    requestBody = {
-                        chat_completion_source: 'makersuite',
-                        reverse_proxy: apiUrl.trim(),
-                        proxy_password: apiKey || '',
-                        model: model,
-                        messages: messages,
-                        ...options
-                    };
-                }
-            } else if (provider === 'backend_custom') {
-                // 后端自定义API
-                requestBody = {
-                    chat_completion_source: 'custom',
-                    custom_url: apiUrl.trim(),
-                    custom_include_headers: apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {},
-                    model: model,
-                    messages: messages,
-                    ...options
-                };
-            } else {
-                // OpenAI 和其他标准API
-                requestBody = {
-                    chat_completion_source: 'openai',
-                    reverse_proxy: apiUrl.trim(),
-                    proxy_password: apiKey || '',
-                    model: model,
-                    messages: messages,
-                    ...options
-                };
-            }
-        }
-
-        // 设置默认值
-        requestBody.max_tokens = options.max_tokens || 30000;
-        requestBody.temperature = options.temperature || 0.7;
-        requestBody.stream = false; // 禁用流式响应以简化处理
-
-        console.log('[Mobile API Config] 发送请求配置:', {
-            provider,
-            url: apiUrl,
-            model,
-            messageCount: messages.length,
-            requestBody: { ...requestBody, proxy_password: requestBody.proxy_password ? '[HIDDEN]' : undefined }
-        });
-
-        try {
-            // 获取请求头
-            let headers = { 'Content-Type': 'application/json' };
-            if (typeof getRequestHeaders === 'function') {
-                headers = getRequestHeaders();
-            }
-
-            const response = await fetch('/api/backends/chat-completions/generate', {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(requestBody)
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('[Mobile API Config] 后端代理请求失败:', {
-                    status: response.status,
-                    statusText: response.statusText,
-                    error: errorText
-                });
-                throw new Error(`后端代理请求失败: HTTP ${response.status} - ${errorText}`);
-            }
-
-            const data = await response.json();
-            console.log('[Mobile API Config] ✅ 后端代理响应成功:', data);
-
-            // 使用统一的响应解析方法
-            return this.parseUnifiedResponse(data, model, 'backend');
-
-        } catch (fetchError) {
-            console.error('[Mobile API Config] ❌ 后端代理请求异常:', fetchError);
-
-            // 详细的错误处理和用户友好的错误消息
-            const userFriendlyError = this.createUserFriendlyError(fetchError, 'backend');
-            throw new Error(userFriendlyError);
-        }
-    }
-
-    /**
-     * 创建用户友好的错误消息
-     */
-    createUserFriendlyError(error, callType) {
-        const errorMessage = error.message.toLowerCase();
-
-        // CORS错误（主要针对前端直连）
-        if (callType === 'frontend' && (error.name === 'TypeError' && errorMessage.includes('failed to fetch'))) {
-            return '前端直连失败: 可能是CORS错误或网络问题。建议：\n1. 使用"后端API"选项通过SillyTavern代理调用\n2. 确认API服务器支持跨域请求\n3. 检查网络连接状态';
-        }
-
-        // 网络连接错误
-        if (errorMessage.includes('network') || errorMessage.includes('connection') || errorMessage.includes('timeout')) {
-            return `网络连接问题: ${error.message}。建议：\n1. 检查网络连接\n2. 确认API服务器地址正确\n3. 尝试增加超时时间`;
-        }
-
-        // 认证错误
-        if (errorMessage.includes('unauthorized') || errorMessage.includes('401') || errorMessage.includes('invalid key')) {
-            return `认证失败: API密钥可能无效或已过期。建议：\n1. 检查API密钥是否正确\n2. 确认密钥是否有足够的权限\n3. 检查账户余额是否充足`;
-        }
-
-        // 权限错误
-        if (errorMessage.includes('forbidden') || errorMessage.includes('403')) {
-            return `权限不足: ${error.message}。建议：\n1. 检查API密钥权限\n2. 确认服务商账户状态\n3. 联系服务商确认访问限制`;
-        }
-
-        // 限流错误
-        if (errorMessage.includes('rate limit') || errorMessage.includes('too many requests') || errorMessage.includes('429')) {
-            return `请求频率限制: 已达到API调用限制。建议：\n1. 稍后重试\n2. 降低请求频率\n3. 升级服务商套餐`;
-        }
-
-        // 服务器错误
-        if (errorMessage.includes('500') || errorMessage.includes('502') || errorMessage.includes('503') || errorMessage.includes('504')) {
-            return `服务器错误: ${error.message}。这通常是临时问题，建议：\n1. 稍后重试\n2. 检查服务商状态页面\n3. 尝试切换到其他服务商`;
-        }
-
-        // Token限制错误
-        if (errorMessage.includes('token') && (errorMessage.includes('limit') || errorMessage.includes('exceed'))) {
-            return `Token限制错误: ${error.message}。建议：\n1. 减少输入文本长度\n2. 增加maxTokens设置\n3. 分段发送长文本`;
-        }
-
-        // 模型不存在错误
-        if (errorMessage.includes('model') && (errorMessage.includes('not found') || errorMessage.includes('does not exist'))) {
-            return `模型不存在: ${error.message}。建议：\n1. 刷新模型列表\n2. 选择其他可用模型\n3. 检查服务商支持的模型列表`;
-        }
-
-        // JSON格式错误
-        if (errorMessage.includes('json') || errorMessage.includes('parse')) {
-            return `数据格式错误: API返回了无效的JSON格式。建议：\n1. 检查API服务器状态\n2. 确认请求参数正确\n3. 稍后重试`;
-        }
-
-        // 默认错误处理
-        return `${callType === 'frontend' ? '前端直连' : '后端代理'}调用失败: ${error.message}`;
-    }
-
-    /**
-     * 通过前端直接调用API
-     */
-    async callDirectAPI(apiUrl, apiKey, model, messages, options) {
-        // 构建请求URL
+        // 构建请求
         let requestUrl = apiUrl.trim();
         if (!requestUrl.endsWith('/')) {
             requestUrl += '/';
         }
-        requestUrl += 'chat/completions';
 
-        // 构建请求头
-        const headers = {
-            'Content-Type': 'application/json'
-        };
+        // 根据不同服务商构建URL
+        if (provider === 'gemini') {
+            // Gemini API使用特殊的URL结构，并通过URL参数传递API key
+            requestUrl += providerConfig.urlSuffix.replace('{model}', model);
+            if (apiKey) {
+                requestUrl += `?key=${apiKey}`;
+            }
+        } else {
+            // OpenAI和自定义API使用标准URL构建
+            requestUrl += providerConfig.urlSuffix.replace('{model}', model);
+        }
 
-        if (apiKey) {
+        const headers = { 'Content-Type': 'application/json' };
+
+        // 根据服务商设置正确的认证方式
+        if (providerConfig.requiresKey && apiKey && provider !== 'gemini') {
             headers['Authorization'] = `Bearer ${apiKey}`;
         }
 
-        // 构建请求体 (OpenAI兼容格式)
-        const requestBody = {
-            model: model,
-            messages: messages,
-            max_tokens: options.max_tokens || this.currentSettings.maxTokens || 30000,
-            temperature: options.temperature || this.currentSettings.temperature || 0.7,
-            stream: false, // 禁用流式响应以简化处理
-            ...options
-        };
+        const requestBody = this.buildRequestBody(provider, model, messages, options);
 
-        // 添加系统提示词
-        if (this.currentSettings.systemPrompt) {
-            requestBody.messages = [
-                { role: 'system', content: this.currentSettings.systemPrompt },
-                ...requestBody.messages
-            ];
-        }
-
-        console.log('[Mobile API Config] 发送前端直连请求:', {
-            url: requestUrl,
-            model,
-            messageCount: messages.length,
-            hasApiKey: !!apiKey
+        const response = await fetch(requestUrl, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(requestBody),
+            timeout: this.currentSettings.timeout || 30000
         });
 
-        try {
-            const response = await fetch(requestUrl, {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(requestBody),
-                timeout: 30000 // 30秒超时
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('[Mobile API Config] 前端直连请求失败:', {
-                    status: response.status,
-                    statusText: response.statusText,
-                    error: errorText
-                });
-                throw new Error(`前端直连请求失败: HTTP ${response.status} - ${errorText}`);
-            }
-
-            const data = await response.json();
-            console.log('[Mobile API Config] ✅ 前端直连响应成功:', data);
-
-            // 使用统一的响应解析方法
-            return this.parseUnifiedResponse(data, model, 'frontend');
-
-        } catch (fetchError) {
-            console.error('[Mobile API Config] ❌ 前端直连请求异常:', fetchError);
-
-            // 详细的错误处理和用户友好的错误消息
-            const userFriendlyError = this.createUserFriendlyError(fetchError, 'frontend');
-            throw new Error(userFriendlyError);
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`API调用失败: HTTP ${response.status} - ${errorText}`);
         }
+
+        const data = await response.json();
+        return this.parseAPIResponse(provider, data);
     }
 
     /**
@@ -1709,354 +1184,22 @@ class MobileCustomAPIConfig {
     }
 
     /**
-     * 统一的响应解析方法 - 处理各种API格式和异常情况
-     */
-    parseUnifiedResponse(data, model, callType = 'unknown') {
-        console.log(`[Mobile API Config] 🔍 解析${callType}响应:`, data);
-
-        // 1. 检查明确的错误
-        if (data.error) {
-            const errorMsg = data.error.message || data.error.code || data.error;
-            throw new Error(`API错误: ${errorMsg}`);
-        }
-
-        // 2. 尝试多种响应格式解析
-        let content = '';
-        let usage = null;
-        let finishReason = null;
-        let responseModel = model;
-
-        // 格式1: OpenAI标准格式和DeepSeek格式
-        if (data.choices && Array.isArray(data.choices) && data.choices.length > 0) {
-            const choice = data.choices[0];
-            // 支持多种DeepSeek和OpenAI格式的内容提取路径
-            content = choice.message?.content ||
-                     choice.text ||
-                     choice.content ||  // DeepSeek可能直接在choice下有content
-                     choice.delta?.content ||
-                     choice.response ||  // 某些变体可能使用response
-                     '';
-            finishReason = choice.finish_reason;
-            usage = data.usage;
-            responseModel = data.model || model;
-
-            // 如果仍然没有内容，尝试更深层的提取
-            if (!content && choice.message) {
-                // 尝试提取message对象的其他可能字段
-                content = choice.message.text ||
-                         choice.message.response ||
-                         choice.message.content || '';
-            }
-
-            // 如果还是没有内容，记录详细的choice结构用于调试
-            if (!content) {
-                console.warn('[Mobile API Config] 🔍 DeepSeek响应choice详细结构:', {
-                    choiceKeys: Object.keys(choice || {}),
-                    messageKeys: choice.message ? Object.keys(choice.message) : null,
-                    choiceStructure: choice,
-                    hasMessage: !!choice.message,
-                    hasContent: !!choice.content,
-                    hasText: !!choice.text,
-                    hasResponse: !!choice.response,
-                    messageContent: choice.message?.content,
-                    messageText: choice.message?.text
-                });
-            }
-        }
-        // 格式2: Gemini API格式
-        else if (data.candidates && Array.isArray(data.candidates) && data.candidates.length > 0) {
-            const candidate = data.candidates[0];
-            content = candidate.content?.parts?.[0]?.text || '';
-            finishReason = candidate.finishReason;
-            usage = data.usageMetadata;
-        }
-        // 格式3: 直接内容格式
-        else if (data.content && typeof data.content === 'string') {
-            content = data.content;
-            usage = data.usage;
-            responseModel = data.model || model;
-        }
-        // 格式4: 某些API的text字段
-        else if (data.text && typeof data.text === 'string') {
-            content = data.text;
-            usage = data.usage;
-        }
-        // 格式5: response字段
-        else if (data.response && typeof data.response === 'string') {
-            content = data.response;
-        }
-        // 格式6: 嵌套的data字段
-        else if (data.data) {
-            return this.parseUnifiedResponse(data.data, model, callType);
-        }
-
-        // 3. 验证内容
-        if (!content || typeof content !== 'string') {
-            console.warn('[Mobile API Config] ⚠️ 响应格式异常，尝试整体解析:', data);
-
-            // 最后尝试：如果是字符串，直接使用
-            if (typeof data === 'string') {
-                content = data;
-            } else if (data.choices && Array.isArray(data.choices) && data.choices.length > 0) {
-                // 对于DeepSeek等特殊格式，尝试更广泛的内容搜索
-                const choice = data.choices[0];
-                console.warn('[Mobile API Config] 🔍 尝试从choice中提取任何可能的文本内容...');
-
-                // 递归搜索choice对象中的任何文本内容
-                function findTextContent(obj, depth = 0) {
-                    if (depth > 3) return null; // 防止过深递归
-                    if (typeof obj === 'string' && obj.trim().length > 0) {
-                        return obj;
-                    }
-                    if (obj && typeof obj === 'object') {
-                        for (const [key, value] of Object.entries(obj)) {
-                            if (key.toLowerCase().includes('content') ||
-                                key.toLowerCase().includes('text') ||
-                                key.toLowerCase().includes('response') ||
-                                key.toLowerCase().includes('message')) {
-                                const found = findTextContent(value, depth + 1);
-                                if (found) return found;
-                            }
-                        }
-                    }
-                    return null;
-                }
-
-                const foundContent = findTextContent(choice);
-                if (foundContent) {
-                    console.log('[Mobile API Config] ✅ 在choice中找到内容!');
-                    content = foundContent;
-                } else {
-                    // 记录详细信息用于调试
-                    console.error('[Mobile API Config] 📋 响应结构分析:', {
-                        hasChoices: !!data.choices,
-                        choicesLength: data.choices?.length,
-                        hasCandidates: !!data.candidates,
-                        candidatesLength: data.candidates?.length,
-                        hasContent: !!data.content,
-                        hasText: !!data.text,
-                        hasResponse: !!data.response,
-                        hasData: !!data.data,
-                        keys: Object.keys(data || {}),
-                        firstChoiceKeys: choice ? Object.keys(choice) : null
-                    });
-
-                    throw new Error(`无法解析API响应格式。响应键: [${Object.keys(data || {}).join(', ')}]`);
-                }
-            } else {
-                // 记录详细信息用于调试
-                console.error('[Mobile API Config] 📋 响应结构分析:', {
-                    hasChoices: !!data.choices,
-                    choicesLength: data.choices?.length,
-                    hasCandidates: !!data.candidates,
-                    candidatesLength: data.candidates?.length,
-                    hasContent: !!data.content,
-                    hasText: !!data.text,
-                    hasResponse: !!data.response,
-                    hasData: !!data.data,
-                    keys: Object.keys(data || {})
-                });
-
-                throw new Error(`无法解析API响应格式。响应键: [${Object.keys(data || {}).join(', ')}]`);
-            }
-        }
-
-        // 4. 验证和格式化内容
-        const validationResult = this.validateAndFormatResponse(content);
-        content = validationResult.content;
-
-        // 5. 检查内容截断
-        const isTruncated = this.checkContentTruncation(content, finishReason, usage);
-        if (isTruncated.truncated) {
-            console.warn(`[Mobile API Config] ⚠️ 检测到内容可能被截断: ${isTruncated.reason}`);
-        }
-
-        // 6. 返回标准格式
-        const result = {
-            content: content,
-            usage: usage,
-            model: responseModel,
-            finishReason: finishReason,
-            truncated: isTruncated.truncated,
-            truncationReason: isTruncated.reason,
-            // 添加验证和格式化信息
-            formatted: validationResult.formatted,
-            quality: validationResult.quality,
-            warnings: validationResult.warnings
-        };
-
-        console.log(`[Mobile API Config] ✅ 成功解析${callType}响应:`, {
-            contentLength: result.content.length,
-            model: result.model,
-            finishReason: result.finishReason,
-            truncated: result.truncated,
-            quality: result.quality,
-            formatted: result.formatted,
-            warningCount: result.warnings.length,
-            usage: result.usage
-        });
-
-        // 如果有警告，显示详细信息
-        if (result.warnings.length > 0) {
-            console.warn(`[Mobile API Config] ⚠️ 响应质量警告:`, result.warnings);
-        }
-
-        return result;
-    }
-
-    /**
-     * 验证和格式化响应内容
-     */
-    validateAndFormatResponse(content) {
-        const warnings = [];
-        let quality = 'good';
-        let formatted = false;
-        let processedContent = content;
-
-        // 1. 基本验证
-        if (!processedContent || typeof processedContent !== 'string') {
-            return {
-                content: '',
-                formatted: false,
-                quality: 'bad',
-                warnings: ['响应内容为空或格式无效']
-            };
-        }
-
-        // 2. 移除常见的API错误标记
-        const errorPatterns = [
-            /^Error:/i,
-            /^API Error:/i,
-            /^错误:/,
-            /^API错误:/
-        ];
-
-        for (const pattern of errorPatterns) {
-            if (pattern.test(processedContent)) {
-                warnings.push('响应中包含错误标记');
-                quality = 'poor';
-                break;
-            }
-        }
-
-        // 3. 清理多余的空白字符
-        const originalContent = processedContent;
-        processedContent = processedContent
-            .replace(/\r\n/g, '\n')           // 统一换行符
-            .replace(/\n{3,}/g, '\n\n')      // 最多保留两个连续换行
-            .replace(/[ \t]+\n/g, '\n')      // 移除行尾空格
-            .replace(/^\s+|\s+$/g, '');       // 移除首尾空白
-
-        if (processedContent !== originalContent) {
-            formatted = true;
-        }
-
-        // 4. 检查内容质量
-        if (processedContent.length === 0) {
-            quality = 'bad';
-            warnings.push('响应内容为空');
-        } else if (processedContent.length < 10) {
-            quality = 'poor';
-            warnings.push('响应内容过短，可能不完整');
-        } else {
-            // 检查是否有异常的重复内容
-            const words = processedContent.split(/\s+/);
-            const uniqueWords = new Set(words);
-
-            if (words.length > 50 && uniqueWords.size < words.length * 0.3) {
-                quality = 'poor';
-                warnings.push('响应中存在大量重复内容');
-            }
-
-            // 检查是否有正常的句子结构
-            const sentences = processedContent.split(/[.!?。！？]/);
-            if (sentences.length === 1 && processedContent.length > 100) {
-                quality = 'poor';
-                warnings.push('响应缺少标点符号，可能是不完整的输出');
-            }
-        }
-
-        // 5. 检查编码问题
-        if (/[���]/.test(processedContent)) {
-            quality = 'poor';
-            warnings.push('响应内容存在编码问题');
-        }
-
-        // 6. 检查是否是模型拒绝回答
-        const refusalPatterns = [
-            /I cannot|I can't|I'm not able to/i,
-            /我不能|我无法|抱歉/,
-            /sorry.*cannot/i,
-            /against.*policy/i
-        ];
-
-        for (const pattern of refusalPatterns) {
-            if (pattern.test(processedContent) && processedContent.length < 500) {
-                warnings.push('模型可能拒绝了请求');
-                break;
-            }
-        }
-
-        return {
-            content: processedContent,
-            formatted: formatted,
-            quality: quality,
-            warnings: warnings
-        };
-    }
-
-    /**
-     * 检查内容截断
-     */
-    checkContentTruncation(content, finishReason, usage) {
-        // 1. 检查finishReason
-        if (finishReason === 'length' || finishReason === 'max_tokens') {
-            return {
-                truncated: true,
-                reason: '达到最大token限制'
-            };
-        }
-
-        // 2. 检查usage信息
-        if (usage) {
-            const totalTokens = usage.total_tokens || usage.totalTokens;
-            const maxTokens = this.currentSettings.maxTokens || 30000;
-
-            if (totalTokens && totalTokens >= maxTokens * 0.95) {
-                return {
-                    truncated: true,
-                    reason: `接近token限制 (${totalTokens}/${maxTokens})`
-                };
-            }
-        }
-
-        // 3. 检查内容是否突然结束
-        if (content.length > 100) {
-            const lastSentences = content.slice(-200);
-            // 如果内容不是以正常的句号、问号、感叹号结尾，可能被截断
-            if (!/[。！？.!?][\s]*$/.test(lastSentences.trim())) {
-                // 进一步检查是否是在句子中间断开
-                const lastWords = content.trim().split(/\s+/).slice(-3);
-                if (lastWords.some(word => word.length < 2)) {
-                    return {
-                        truncated: true,
-                        reason: '内容可能在单词中间被截断'
-                    };
-                }
-            }
-        }
-
-        return {
-            truncated: false,
-            reason: null
-        };
-    }
-
-    /**
-     * 解析API响应 (兼容旧版本)
+     * 解析API响应 (OpenAI兼容格式)
      */
     parseAPIResponse(provider, data) {
-        return this.parseUnifiedResponse(data, null, provider);
+        if (provider === 'gemini') {
+            // Gemini API响应格式
+            return {
+                content: data.candidates?.[0]?.content?.parts?.[0]?.text || '',
+                usage: data.usageMetadata
+            };
+        } else {
+            // OpenAI兼容格式（用于OpenAI和自定义API）
+            return {
+                content: data.choices?.[0]?.message?.content || '',
+                usage: data.usage
+            };
+        }
     }
 
     /**
@@ -2086,24 +1229,6 @@ class MobileCustomAPIConfig {
     }
 
     /**
-     * 清理配置缓存
-     */
-    clearConfigCache() {
-        this.successfulConfigs.clear();
-        console.log('[Mobile API Config] 🗑️ 配置缓存已清理');
-    }
-
-    /**
-     * 获取缓存统计信息
-     */
-    getCacheStats() {
-        return {
-            cacheSize: this.successfulConfigs.size,
-            cachedConfigs: Array.from(this.successfulConfigs.keys())
-        };
-    }
-
-    /**
      * 调试函数：检查当前配置状态
      */
     debugConfig() {
@@ -2111,14 +1236,12 @@ class MobileCustomAPIConfig {
         console.log('✅ 初始化状态:', this.isInitialized);
         console.log('📋 当前设置:', {
             provider: this.currentSettings.provider,
-            providerName: this.supportedProviders[this.currentSettings.provider]?.name || '未知',
             enabled: this.currentSettings.enabled,
             apiUrl: this.currentSettings.apiUrl || '(未设置)',
             hasApiKey: !!this.currentSettings.apiKey,
             model: this.currentSettings.model || '(未设置)',
             temperature: this.currentSettings.temperature,
-            maxTokens: this.currentSettings.maxTokens,
-            isFrontendDirect: this.currentSettings.provider === 'frontend_custom'
+            maxTokens: this.currentSettings.maxTokens
         });
         console.log('🌐 支持的服务商:', Object.keys(this.supportedProviders));
         console.log('⚙️ 当前Provider配置:', this.supportedProviders[this.currentSettings.provider]);
@@ -2233,133 +1356,6 @@ jQuery(document).ready(() => {
 window.MobileCustomAPIConfig = MobileCustomAPIConfig;
 
 // 全局辅助函数
-
-/**
- * 测试响应解析和验证功能
- */
-window.testResponseParsing = function(sampleData) {
-    console.log('🧪 测试响应解析功能...');
-
-    const config = window.mobileCustomAPIConfig;
-    if (!config) {
-        console.error('❌ API配置管理器未初始化');
-        return;
-    }
-
-    // 测试数据样例
-    const testCases = sampleData || [
-        {
-            name: 'OpenAI标准格式',
-            data: {
-                choices: [{ message: { content: '这是一个测试响应。' } }],
-                usage: { total_tokens: 100 },
-                model: 'gpt-3.5-turbo'
-            }
-        },
-        {
-            name: 'Gemini格式',
-            data: {
-                candidates: [{ content: { parts: [{ text: '这是Gemini的测试响应。' }] } }],
-                usageMetadata: { totalTokens: 80 }
-            }
-        },
-        {
-            name: '直接内容格式',
-            data: {
-                content: '直接返回的内容测试。',
-                model: 'test-model'
-            }
-        },
-        {
-            name: '截断响应测试',
-            data: {
-                choices: [{
-                    message: { content: '这是一个被截断的响应...' },
-                    finish_reason: 'length'
-                }],
-                usage: { total_tokens: 50000 }
-            }
-        },
-        {
-            name: '错误响应测试',
-            data: {
-                error: { message: 'API密钥无效' }
-            }
-        }
-    ];
-
-    testCases.forEach(testCase => {
-        console.log(`\n📋 测试用例: ${testCase.name}`);
-        try {
-            const result = config.parseUnifiedResponse(testCase.data, 'test-model', 'test');
-            console.log('✅ 解析成功:', {
-                contentLength: result.content.length,
-                quality: result.quality,
-                truncated: result.truncated,
-                warnings: result.warnings
-            });
-            if (result.content.length < 100) {
-                console.log('📝 内容预览:', result.content);
-            }
-        } catch (error) {
-            console.log('❌ 解析失败:', error.message);
-        }
-    });
-};
-
-/**
- * 检查API配置的完整性
- */
-window.checkAPIHealth = function() {
-    console.log('🏥 开始API健康检查...');
-
-    const config = window.mobileCustomAPIConfig;
-    if (!config) {
-        console.error('❌ API配置管理器未初始化');
-        return;
-    }
-
-    const health = {
-        initialized: config.isInitialized,
-        enabled: config.currentSettings.enabled,
-        hasProvider: !!config.currentSettings.provider,
-        hasUrl: !!config.currentSettings.apiUrl,
-        hasKey: !!config.currentSettings.apiKey,
-        hasModel: !!config.currentSettings.model,
-        cacheSize: config.getCacheStats().cacheSize,
-        issues: []
-    };
-
-    // 检查各项配置
-    if (!health.initialized) health.issues.push('配置管理器未完成初始化');
-    if (!health.enabled) health.issues.push('自定义API未启用');
-    if (!health.hasProvider) health.issues.push('未选择API服务商');
-    if (!health.hasUrl && config.currentSettings.provider !== 'gemini') health.issues.push('未设置API URL');
-    if (!health.hasKey) health.issues.push('未设置API密钥');
-    if (!health.hasModel) health.issues.push('未选择模型');
-
-    // Token限制检查
-    const maxTokens = config.currentSettings.maxTokens || 0;
-    if (maxTokens < 10000) health.issues.push('Token限制设置过低，建议至少10000');
-    if (maxTokens > 100000) health.issues.push('Token限制设置很高，请确认服务商支持');
-
-    console.log('📊 健康检查结果:', health);
-
-    if (health.issues.length === 0) {
-        console.log('✅ API配置看起来很健康！');
-    } else {
-        console.warn('⚠️ 发现以下问题:');
-        health.issues.forEach((issue, index) => {
-            console.warn(`  ${index + 1}. ${issue}`);
-        });
-    }
-
-    return health;
-};
-
-/**
- * 修复Gemini配置
- */
 window.fixGeminiConfig = function() {
     console.log('🔧 正在修复Gemini配置...');
 
@@ -2393,23 +1389,7 @@ window.fixGeminiConfig = function() {
 console.log(`
 🚀 [Mobile API Config] 可用的调试命令:
 
-   基础配置：
    查看配置状态: window.mobileCustomAPIConfig.debugConfig()
-   检查API健康: window.checkAPIHealth()
-   修复Gemini配置: window.fixGeminiConfig()
-
-   测试功能：
    手动测试获取: await window.mobileCustomAPIConfig.testModelFetch()
-   测试响应解析: window.testResponseParsing()
-
-   缓存管理：
-   清理配置缓存: window.mobileCustomAPIConfig.clearConfigCache()
-   查看缓存统计: window.mobileCustomAPIConfig.getCacheStats()
-
-   ✨ 新功能说明：
-   - 支持多种响应格式自动识别和解析
-   - 内容截断检测和自动重试
-   - 响应质量验证和格式化
-   - 智能错误处理和用户友好的错误提示
-   - 提高默认Token限制以减少截断问题
+   修复Gemini配置: window.fixGeminiConfig()
 `);
