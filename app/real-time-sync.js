@@ -7,7 +7,7 @@ class RealTimeSync {
   constructor() {
     this.isRunning = false;
     this.lastSyncTime = 0;
-    this.syncInterval = 2000; // 同步间隔 2秒
+    this.syncInterval = 200000; // 同步间隔 2秒
     this.syncTimer = null;
 
     // 缓存状态
@@ -508,7 +508,7 @@ class RealTimeSync {
 
   // 设置同步间隔
   setSyncInterval(interval) {
-    this.syncInterval = Math.max(1000, interval); // 最小1秒
+    this.syncInterval = Math.max(100000, interval); // 最小1秒
 
     if (this.isRunning) {
       // 重新启动定时器
